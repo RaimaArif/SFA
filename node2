@@ -1,0 +1,322 @@
+/*
+ * Copyright (c) 2007, Swedish Institute of Computer Science.
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in the
+ *    documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the Institute nor the names of its contributors
+ *    may be used to endorse or promote products derived from this software
+ *    without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE INSTITUTE AND CONTRIBUTORS ``AS IS'' AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED.  IN NO EVENT SHALL THE INSTITUTE OR CONTRIBUTORS BE LIABLE
+ * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+ * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
+ * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
+ * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
+ * SUCH DAMAGE.
+ *
+ * This file is part of the Contiki operating system.
+ *
+ */
+
+/**
+ * \file
+ *         Best-effort single-hop unicast example
+ * \author
+ *         Adam Dunkels <adam@sics.se>
+ */
+
+#include "contiki.h"
+#include "net/rime/rime.h"
+#include <stdio.h>
+#include "clock.c"
+
+
+
+/*---------------------------------------------------------------------------*/
+PROCESS(example_unicast_process, "Example unicast");
+AUTOSTART_PROCESSES(&example_unicast_process);
+/*---------------------------------------------------------------------------*/
+
+struct Message
+{
+    int id;
+    int totalPackets;
+    char m;
+    int packetNumber;
+ //   int alarm;
+};
+
+
+
+/*---------------------------------------------------------------------------*/
+int static prev_time=0;
+int static time=0;
+int static firstpack=1;
+
+static struct Message msg;
+
+/*---------------------------------------------------------------------------*/
+
+
+ struct sdpm //supervisory data packet module
+ {
+   int sid;  //source id
+   int pack; //packet Number
+   struct spdm *next;  //the address of next block   
+ };
+ struct sdpm *head;
+
+
+ /*---------------------------------------------------------------------------*/
+ void insert(int s, int p)
+ {
+
+   struct sdpm *newsdpm = (struct sdpm *)malloc(sizeof(struct sdpm));
+   newsdpm->sid=s;
+   newsdpm->pack=p;
+   //printf("\n the linked list stored (%d,%d)\n",newsdpm->sid, newsdpm->pack );
+   newsdpm->next=head;
+   head=newsdpm;
+
+ }
+
+ /*---------------------------------------------------------------------------*/
+
+ //display the list
+ void printsdpm() {
+    struct sdpm *ptr = head;
+    printf("\n[ ");
+  
+    //start from the beginning
+    while(ptr != NULL) {
+       printf("(%d,%d) ",ptr->sid,ptr->pack);
+       ptr = ptr->next;
+    }
+ 
+    printf(" ]");
+ }
+
+
+ /*---------------------------------------------------------------------------*/
+ //find a link with given key
+ void find(int s) {
+   int arr_packs[40];
+   int t=0;
+
+    //start from the first link
+    struct sdpm* current = head;
+
+    //if list is empty
+    if(head == NULL) {
+       return NULL;
+    }
+
+    //navigate through list
+    while(current->next != NULL) {
+  
+      
+       if(current->sid == s) {
+          {
+           arr_packs[t]= current->pack;
+           t++; 
+          }
+       } else {
+          //go to next link
+          current = current->next;
+       }
+    }      
+  
+    //if data found, return the current Link
+    //return current;
+
+ int a = 0;
+   while ( a <40 )
+   {
+             printf( "%d\n", arr_packs[a]) ;
+             a++;
+         }
+
+ }
+
+
+/*---------------------------------------------------------------------------*/
+
+void detect(int prev_time, int time)
+{
+  int delay=time-prev_time;
+  if(delay>128)
+  {
+    printf("******************Alarm generated!!!*********************** \n");
+  }
+}
+/*---------------------------------------------------------------------------*/
+
+static void
+sent_uc(struct unicast_conn *c, int status, int num_tx)
+{
+  const linkaddr_t *dest = packetbuf_addr(PACKETBUF_ADDR_RECEIVER);
+  if(linkaddr_cmp(dest, &linkaddr_null)) {
+    return;
+  }
+  printf("unicast message sent to %d.%d: status %d num_tx %d\n",
+    dest->u8[0], dest->u8[1], status, num_tx);
+}
+/*---------------------------------------------------------------------------*/
+
+static void
+recv_uc(struct unicast_conn *c, const linkaddr_t *from)
+{
+    
+    static struct Message check[40];
+    static int packetCounter = 0;
+      printf("unicast message received from %d.%d\n",
+    	 from->u8[0], from->u8[1]);
+            //just to skip check for first transmission
+      time= clock_time();
+      
+      
+      if (firstpack == 0)            //just to skip check for first transmission
+
+      {
+        detect(time,prev_time);
+      }
+      prev_time=time;
+      firstpack=0;
+         printf("Packet Receiving Time: Clock Time  %d \n",time );
+         //unsigned long t=clock_seconds();
+                //printf("seconds tine is............%ld \n",t );
+
+     packetbuf_copyto(&msg);
+
+     if(msg.id == 001)
+     {
+         printf("Received Packet Number:%d\n",msg.packetNumber);    
+         //insert(from->u8[0],msg.packetNumber);
+         //printsdpm();
+         // msg.packetNumber=msg.packetNumber+200;
+         // printf("%d\n",msg.packetNumber );
+         check[packetCounter] = msg;
+         packetCounter = packetCounter + 1;
+        // int time=sim.getSimulationTime();
+         // long time= clock_time();
+         // printf("time is............%ld \n",time );
+
+     }
+     //printf("the alarm value is =  %d\n",msg.alarm);
+
+    // if (msg.alarm==0)
+    // {
+    // path();
+    // }
+
+    // else 
+    // {
+    //   path_change();
+    // }
+
+      if(msg.packetNumber<9)
+     {path();
+     }
+
+
+     else
+     {
+      path_change();
+     }
+
+     // if(packetCounter == msg.totalPackets)
+     // {
+     //     printf("*****************All packets received*************************\n");
+     // }
+
+     // send_msg();
+     
+
+}
+
+void path()
+     { 
+     static const struct unicast_callbacks unicast_callbacks_1 = {sent_uc};
+     static struct unicast_conn uc_1;
+     unicast_open(&uc_1, 147, &unicast_callbacks_1);
+
+     linkaddr_t addr;
+     // msg.requestType = 1;
+     // char msg = 'x';
+     packetbuf_copyfrom(&msg, sizeof(msg));
+     addr.u8[0] = 3;
+     addr.u8[1] = 0;
+         if (!linkaddr_cmp(&addr, &linkaddr_node_addr))
+         {
+             printf("Sending Message to %d.%d, Packet Number:%d\n",addr.u8[0], addr.u8[1],msg.packetNumber);
+             unicast_send(&uc_1, &addr);
+         }
+
+      }
+
+     void path_change()
+     { 
+     static const struct unicast_callbacks unicast_callbacks_1 = {sent_uc};
+     static struct unicast_conn uc_1;
+     unicast_open(&uc_1, 148, &unicast_callbacks_1);
+     linkaddr_t addr;
+     // msg.requestType = 1;
+     // char msg = 'x';
+     packetbuf_copyfrom(&msg, sizeof(msg));
+     addr.u8[0] = 6;
+     addr.u8[1] = 0;
+     if (!linkaddr_cmp(&addr, &linkaddr_node_addr))
+     {
+         printf("Sending Message to %d.%d, Packet Number:%d\n",addr.u8[0], addr.u8[1],msg.packetNumber);
+         unicast_send(&uc_1, &addr);
+     }
+}   
+
+/*---------------------------------------------------------------------------*/
+static const struct unicast_callbacks unicast_callbacks = {recv_uc, sent_uc};
+static struct unicast_conn uc;
+/*---------------------------------------------------------------------------*/
+// static void send_msg()
+// {
+//
+// }
+/*---------------------------------------------------------------------------*/
+PROCESS_THREAD(example_unicast_process, ev, data)
+{
+  PROCESS_EXITHANDLER(unicast_close(&uc);)
+
+  PROCESS_BEGIN();
+
+  unicast_open(&uc, 146, &unicast_callbacks);
+
+   while(1) {
+     static struct etimer et;
+     linkaddr_t addr;
+    
+     etimer_set(&et, CLOCK_SECOND);
+    
+     PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
+    
+     packetbuf_copyfrom("Hello", 5);
+     addr.u8[0] = 1;
+     addr.u8[1] = 0;
+     if(!linkaddr_cmp(&addr, &linkaddr_node_addr)) {
+       unicast_send(&uc, &addr);
+    }
+
+   }
+
+  PROCESS_END();
+}
